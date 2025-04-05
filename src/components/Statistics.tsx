@@ -202,28 +202,58 @@ export default function Statistics({ activities, categories }: StatisticsProps) 
                 const sortedEvents = period.events.sort((a, b) => a.time.localeCompare(b.time))
                 let dailySleepMinutes = 0
 
-                // Trouver le premier réveil et le dernier coucher de la journée
-                const firstWake = sortedEvents.find(e => e.title.includes('réveil'))
-                const lastBed = [...sortedEvents].reverse().find(e => e.title.includes('coucher'))
+                // Trouver tous les réveils et couchers
+                const wakeEvents = sortedEvents.filter(e => e.title.includes('réveil'))
+                const bedEvents = sortedEvents.filter(e => e.title.includes('coucher'))
 
-                if (firstWake) {
-                    // De minuit jusqu'au réveil
-                    const wakeTime = parseISO(`${period.date}T${firstWake.time}`)
-                    dailySleepMinutes += differenceInMinutes(wakeTime, midnight)
+                // Traiter les périodes de sommeil
+                let lastWakeTime: Date | null = null
+
+                // Traiter chaque réveil
+                for (let i = 0; i < wakeEvents.length; i++) {
+                    const wakeEvent = wakeEvents[i]
+                    const wakeTime = parseISO(`${period.date}T${wakeEvent.time}`)
+
+                    // Chercher le dernier coucher avant ce réveil
+                    const previousBed = [...bedEvents]
+                        .reverse()
+                        .find(b => b.time < wakeEvent.time)
+
+                    if (previousBed) {
+                        // Si on trouve un coucher précédent dans la même journée
+                        const bedTime = parseISO(`${period.date}T${previousBed.time}`)
+                        dailySleepMinutes += differenceInMinutes(wakeTime, bedTime)
+                    } else {
+                        // Si pas de coucher précédent, on compte depuis minuit
+                        // mais seulement si on n'a pas déjà compté une période qui inclut minuit
+                        if (!lastWakeTime || lastWakeTime < midnight) {
+                            dailySleepMinutes += differenceInMinutes(wakeTime, midnight)
+                        }
+                    }
+
+                    lastWakeTime = wakeTime
                 }
 
+                // Traiter le dernier coucher s'il n'est pas suivi d'un réveil
+                const lastBed = bedEvents[bedEvents.length - 1]
                 if (lastBed) {
-                    // Du coucher jusqu'à minuit
-                    const bedTime = parseISO(`${period.date}T${lastBed.time}`)
-                    dailySleepMinutes += differenceInMinutes(nextMidnight, bedTime)
+                    const lastBedTime = parseISO(`${period.date}T${lastBed.time}`)
+                    const nextWake = wakeEvents.find(w => w.time > lastBed.time)
+
+                    if (!nextWake) {
+                        // Si pas de réveil après, on compte jusqu'à minuit
+                        dailySleepMinutes += differenceInMinutes(nextMidnight, lastBedTime)
+                    }
                 }
 
                 // Ajouter les siestes
                 const napEvents = sortedEvents.filter(e => e.title.includes('sieste'))
                 napEvents.forEach(nap => {
-                    const napStart = parseISO(`${period.date}T${nap.time}`)
-                    const napEnd = parseISO(`${period.date}T${nap.endTime}`)
-                    dailySleepMinutes += differenceInMinutes(napEnd, napStart)
+                    if (nap.endTime) {
+                        const napStart = parseISO(`${period.date}T${nap.time}`)
+                        const napEnd = parseISO(`${period.date}T${nap.endTime}`)
+                        dailySleepMinutes += differenceInMinutes(napEnd, napStart)
+                    }
                 })
 
                 if (dailySleepMinutes > 0) {
@@ -251,7 +281,7 @@ export default function Statistics({ activities, categories }: StatisticsProps) 
                 data: stats.map((stat) => +(stat.totalMinutes / 60).toFixed(1)),
                 backgroundColor: categories.map((cat) => getBackgroundColor(cat.color, 0.3)),
                 borderWidth: 0,
-                order: 1,
+                order: 0,
             },
             {
                 label: 'Temps effectué (heures)',

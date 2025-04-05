@@ -6,8 +6,6 @@ import { fr } from 'date-fns/locale'
 import { PlusIcon, ChartBarIcon, PencilIcon } from '@heroicons/react/24/outline'
 import AddActivityModal from './AddActivityModal'
 import Statistics from './Statistics'
-import PDFExport from './PDFExport'
-import Notifications from './Notifications'
 
 interface Activity {
     id: string
@@ -185,16 +183,6 @@ export default function WeeklyPlanner() {
         <div className="space-y-6">
             <div className="flex justify-between items-center mb-4">
                 <div className="flex items-center gap-4">
-                    <Notifications activities={activities} />
-                    <PDFExport
-                        week={weekDays.map(day => ({
-                            date: day,
-                            activities: activities.filter(activity =>
-                                activity.date === format(day, 'yyyy-MM-dd')
-                            )
-                        }))}
-                        categories={categories}
-                    />
                 </div>
                 <button
                     onClick={() => setShowStats(!showStats)}
